@@ -1,0 +1,162 @@
+---
+---
+title: "CHL5233: Quarto in-class assignment"
+author: "Pengyu Wang"
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+      - heightrounded
+---
+
+## Setup
+
+```{r}
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+## Read in data and create an analytical data set
+
+### First: Read countries.txt
+
+```{r}
+#| echo: true
+
+countries <- read.table(
+  "../data/raw/countries.txt",
+  header = TRUE
+)
+
+dim(countries)
+```
+
+There are `r nrow(countries)` countries and `r ncol(countries)` columns in this data set.
+
+### Second: Read regions.txt
+
+```{r}
+#| echo: true
+
+regions <- read.table(
+  "../data/raw/regions.txt",
+  header = TRUE
+)
+
+dim(regions)
+```
+
+There are `r nrow(regions)` countries and `r ncol(regions)` columns in this data set.
+
+### Third: Create an analytical data set
+
+```{r}
+#| echo: true
+
+# Check variable names
+names(countries)
+names(regions)
+
+# Identify the ISO country code column
+possible_names <- c(
+  "country_code", "iso3", "iso3c",
+  "iso_code", "code", "ISO3", "ISO"
+)
+
+code_col <- intersect(possible_names, names(countries))[1]
+
+# Standardize ISO codes
+countries <- countries |>
+  mutate(
+    country_code = toupper(
+      trimws(as.character(.data[[code_col]]))
+    )
+  )
+
+regions <- regions |>
+  mutate(
+    country_code = toupper(
+      trimws(as.character(country_code))
+    )
+  )
+
+# Keep only countries included in the study
+study_regions <- regions |>
+  semi_join(countries, by = "country_code")
+
+dim(study_regions)
+```
+
+The analytical data set contains `r nrow(study_regions)` countries.
+
+## Tabulate countries by region and sub-region
+
+### Number of countries by region
+
+```{r}
+#| echo: true
+
+region_counts <- study_regions |>
+  group_by(region) |>
+  summarise(
+    Count = n_distinct(country_code),
+    .groups = "drop"
+  ) |>
+  arrange(desc(Count))
+
+kable(
+  region_counts,
+  col.names = c("Region", "Count"),
+  caption = "Number of Countries by Region"
+)
+```
+
+### Number of countries by sub-region
+
+```{r}
+#| echo: true
+
+sub_region_counts <- study_regions |>
+  group_by(sub_region) |>
+  summarise(
+    Count = n_distinct(country_code),
+    .groups = "drop"
+  ) |>
+  arrange(desc(Count))
+
+kable(
+  sub_region_counts,
+  col.names = c("Sub-region", "Count"),
+  caption = "Number of Countries by Sub-region"
+)
+```
+
+## Data visualization using ggplot
+
+```{r}
+#| echo: true
+#| fig-width: 9
+#| fig-height: 7
+
+ggplot(
+  study_regions,
+  aes(
+    x = fct_infreq(sub_region),
+    fill = region
+  )
+) +
+  geom_bar() +
+  coord_flip() +
+  scale_x_discrete(limits = rev) +
+  labs(
+    title = "Number of Countries by Sub-region",
+    x = "Sub-region",
+    y = "Number of Countries",
+    fill = "Region"
+  ) +
+  theme_minimal()
+```
