@@ -10,7 +10,7 @@ format:
 library(tidyverse)
 
 final_data <- readr::read_csv(
-  "data/processed/final_data.csv",
+ "data/processed/final_data.csv",
   show_col_types = FALSE
 )
 
