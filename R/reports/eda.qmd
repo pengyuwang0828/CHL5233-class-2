@@ -1,0 +1,54 @@
+```{r}
+library(tidyverse)
+
+final_data <- readr::read_csv(
+  "data/processed/final_data.csv",
+  show_col_types = FALSE
+)
+
+table(final_data$armed_conflict, useNA = "ifany")
+summary(final_data$armed_conflict)
+
+ggplot(final_data, aes(x = factor(armed_conflict))) +
+  geom_bar() +
+  labs(
+    x = "Armed conflict",
+    y = "Number of observations"
+  )
+
+  yearly_conflict <- final_data |>
+  dplyr::group_by(year) |>
+  dplyr::summarise(
+    proportion_conflict = mean(armed_conflict == 1, na.rm = TRUE)
+  )
+
+ggplot(yearly_conflict, aes(x = year, y = proportion_conflict)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Year",
+    y = "Proportion with armed conflict",
+    title = "Armed Conflict Over Time"
+  )
+
+  country_conflict <- final_data |>
+  dplyr::group_by(iso) |>
+  dplyr::summarise(
+    conflict_years = sum(armed_conflict == 1, na.rm = TRUE)
+  ) |>
+  dplyr::arrange(desc(conflict_years))
+
+head(country_conflict, 10)
+```
+
+## Exploratory Data Analysis
+
+The final data set contains 3,720 country-year observations from 186 countries between 2000 and 2019. I first examined the armed_conflict variable using a frequency table, summary statistics, and a bar chart. There were 665 observations coded as armed conflict and 3,055 observations coded as no armed conflict. The mean of the binary armed conflict variable was 0.1788, indicating that about 17.9% of all country-year observations were classified as having armed conflict. Overall, observations without armed conflict were much more common in the data.
+
+I then examined how the proportion of armed conflict changed over time. The yearly proportion was not constant across the study period. In the later years, the proportion was 20.4% in 2015, increased to 26.3% in 2016, and was about 21.0% in both 2017 and 2018. This shows that the occurrence of armed conflict varied from year to year rather than following a completely stable pattern.
+
+However, the proportion drops to 0 in 2019. Further inspection suggests that this is a data-processing issue rather than a true absence of armed conflict. The data still contain 186 country observations in 2019, but all of them are coded as armed_conflict = 0. In the data-processing script, missing values in armed_conflict after the join are replaced with 0. Therefore, if the original conflict data do not contain matching observations for 2019, those missing values would be converted to 0. For this reason, the 2019 value should be interpreted with caution rather than treated as evidence that no armed conflict occurred in that year.
+
+Finally, I examined differences across countries by counting the number of years in which each country was classified as experiencing armed conflict. Several countries had 19 conflict years, including Afghanistan, the Democratic Republic of the Congo, Colombia, Algeria, Ethiopia, India, Iraq, Myanmar, Nigeria, and Pakistan. This shows that armed conflict is not evenly distributed across countries. Some countries experienced conflict repeatedly during the study period, while many others had few or no conflict years.
+
+Overall, the exploratory analysis shows three main patterns. First, armed conflict was less common than no armed conflict in the full data set. Second, the proportion of armed conflict changed over time. Third, conflict was concentrated in a subset of countries. The unusual 2019 pattern also shows why it is important to examine the data carefully before moving to further statistical analysis.
