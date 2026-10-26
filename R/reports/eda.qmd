@@ -1,3 +1,11 @@
+title: "EDA"
+author: "Pengyu Wang"
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+      - heightrounded
 ```{r}
 library(tidyverse)
 
