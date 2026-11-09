@@ -1,0 +1,206 @@
+---
+title: "Displaying results from regression analysis"
+format: 
+  revealjs:
+    slide-number: true
+    show-slide-number: all
+editor: source
+embed-resources: true
+---
+
+```{r setup}
+#| echo: true
+#| message: false
+#| include: false
+  
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(
+  #fig.width=9, fig.height=3.5, fig.retina=3,
+  fig.retina = 3,
+  #out.height = "100%",
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  hiline = TRUE
+)
+
+library(tidyverse)
+library(knitr)
+library(flextable)
+library(texreg)
+library(plm)
+```
+
+## Please install and load `plm` package
+
+```{r}
+#| eval: false
+install.packages("plm")
+library(plm)
+```
+
+## Last week
+
+Review Table 1 and Figure from last week.
+
+
+## Panel data 
+
+- Panel data basically refers to longitudinal data where the same variables are repeatedly measured over time for each subject (country)
+    + How many repeated measurements of each variable do we have for each country?
+- The term panel data is more often used in econometrics and the term longitudinal data is more often used in epidemiology
+    + What are the authors' affiliation?
+
+## Panel data variables 
+
+- $Y_{it}$: Maternal mortality for country $i$ in year $t$
+- $X_{i(t-1)}$: Dummy variable for armed conflict exposure for country $i$ in year $t$
+- $\boldsymbol{Z}_{it}$: Covariates for country $i$ in year $t$
+    + Give an example of one of the $\boldsymbol{Z}_{it}$ variable
+
+
+## Models for panel data
+#### Multiple linear regression
+$$
+Y_{it} = \beta_0 + \beta_1 X_{i(t-1)} + \boldsymbol{\beta} \boldsymbol{Z}_{it} + \epsilon_{it}
+$$
+
+- What assumptions do we make when we fit multiple linear regression to panel data?
+
+## Models for panel data 
+#### Problem with linear regression
+
+- Countries have individual **unobserved** characteristics that may or may not influence the maternal mortality and/or armed conflict
+- What do we call variables that affect both the outcome and the predictor?
+- If we control for them, the effect of the predictors will not be influenced by the unobserved fixed country characteristics
+
+## Models for panel data 
+#### Fixed effects model 
+
+$$
+\begin{align}
+Y_{it} &= \beta_0 + \beta_1 X_{i(t-1)} + \boldsymbol{\beta} \boldsymbol{Z}_{it} + \beta_ii +  \epsilon_{it} \\
+&= \beta_1 X_{i(t-1)} + \boldsymbol{\beta} \boldsymbol{Z}_{it} + \alpha_i + \epsilon_{it}
+\end{align}
+$$
+
+- $\alpha_i = \beta_0 + \beta_iC_i$ where $C_i$ is a dummy variable for country $i$
+- $\alpha_i$ is the fixed effects which represents time-invariate characteristics of countries that are not otherwise accounted for by the inclusion of $\boldsymbol{Z}_{it}$
+- $\alpha_i$ can be correlated with $X_{i(t-1)}$ and $\boldsymbol{Z}_{it}$
+
+```{r}
+#| echo: FALSE
+finaldata <- read.csv("../armed_conflict_26/data/processed/final_data.csv", header = TRUE) 
+#finaldata$pop_dens <- finaldata$pop_dens / 100
+```
+
+<!-- ```{r} -->
+<!-- maternal_mortalitymod <- lm(maternal_mortality ~ -1 + armconf1 + gdp1000 + OECD + pctpopdens + urban +  -->
+<!--                   agedep + male_edu + temp + rainfall1000 + earthquake + drought + ISO, data = finaldata) -->
+<!-- library(plm) -->
+<!-- maternal_mortalityplm <- plm(maternal_mortality ~ armconf1 + gdp1000 + OECD + pctpopdens + urban +  -->
+<!--                   agedep + male_edu + temp + rainfall1000 + earthquake + drought, -->
+<!--                  index = c("iso"), model = "within", data = finaldata) -->
+<!-- ``` -->
+
+
+## Models for panel data 
+#### Fixed effects model in R
+
+With `lm()`
+```{r}
+#| eval: FALSE
+
+lmmod <- lm(maternal_mortality ~ -1 + armed_conflict + gdp_1000 + oecd + pop_dens + urban +
+              age_dep + male_edu + temp + rainfall_1000 + earthquake + drought +
+              iso, 
+            data = finaldata)
+```
+
+With `plm()`
+```{r}
+#| eval: FALSE
+library(plm)
+plmmod <- plm(maternal_mortality ~ armed_conflict + gdp_1000 + oecd + pop_dens + urban +
+              age_dep + male_edu + temp + rainfall_1000 + earthquake + drought,
+              index = c("iso"), model = "within", data = finaldata)
+```
+
+* Fit these two models in R and compare the coefficients
+
+## Models for panel data 
+#### Country and time fixed effects model
+
+Adding fixed effects for year
+$$
+\begin{align}
+Y_{it} &= \beta_0 + \beta_1 X_{i(t-1)} + \boldsymbol{\beta} \boldsymbol{Z}_{it} + \alpha_i + u_t + \epsilon_{it}
+\end{align}
+$$
+
+- $u_t$ is the coefficient for year $t$
+- Why did $\beta_0$ come back in the model?
+
+## The model in the paper {.smaller}
+
+The model presented on page 6 in the paper is
+
+$$
+\text{Outcome}_{it} = \beta_{0} + \beta_{1}\text{Conflict}_{i(t-1)} + \beta_2\text{Covariates}_{it} + i + t + u_{it}
+$$
+
+where $i$ is the country, $t$ is the year, and $u_{it}$ is the error term. 
+
+- If you had been the anonymous peer-reviewer of this manuscript, what criticisms/suggestions would you make to the authors about this equation?
+
+## Models for panel data {.smaller}
+#### Fixed effects model in R
+
+With `lm()`
+```{r}
+#| eval: FALSE
+
+lmmod <- lm(maternal_mortality ~ -1 + armed_conflict + gdp_1000 + oecd + pop_dens + urban +
+              age_dep + male_edu + temp + rainfall_1000 + earthquake + drought +
+              iso + as.factor(year), 
+            data = finaldata)
+```
+
+With `plm()`
+```{r}
+#| eval: FALSE
+
+plmmod <- plm(maternal_mortality ~ armed_conflict + gdp_1000 + oecd + pop_dens + urban +
+              age_dep + male_edu + temp + rainfall_1000 + earthquake + drought,
+              index = c("iso", "year"),
+              effect = "twoways",
+              model = "within",
+              data = finaldata)
+```
+
+* Fit these two models in R and compare the coefficients
+* What is the coefficient for GDP? Does the interpretation make sense?
+
+## Models for other outcomes
+
+- The predictors for the other three models are the same
+- Instead of copying and pasted all the predictors, we can simplify the code
+
+```{r}
+preds <- as.formula(" ~ armed_conflict + gdp_1000 + oecd + pop_dens + urban +
+                  age_dep + male_edu + temp + rainfall_1000 + earthquake + drought +  
+                  iso + as.factor(year)")
+
+maternal_mortalitymod <- lm(update.formula(preds, maternal_mortality ~ .), data = finaldata)
+un5mormod <- lm(update.formula(preds, under5_mortality ~ .), data = finaldata)
+infmormod <- lm(update.formula(preds, infant_mortality ~ .), data = finaldata)
+neomormod <- lm(update.formula(preds, neonatal_mortality ~ .), data = finaldata)
+```
+
+## In-class assignment
+
+1. Log transform GDP and use the transformed GDP as one of the predictors
+2. Write a script that fits the four mortality models using `plm()`
+3. Using your favorite package, create a table (in pdf or html) similar to Table 2 in the paper for only the binary armed conflict specification
+    * `textreg`, `stargazer`, etc. 

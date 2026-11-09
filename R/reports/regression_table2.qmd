@@ -1,0 +1,118 @@
+---
+title: "Table 2. Association Between Armed Conflict and Maternal, Under-5, Infant, and Neonatal Mortality"
+format: html
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(plm)
+library(modelsummary)
+
+final_data <- readr::read_csv(
+  "../../data/processed/final_data.csv",
+  show_col_types = FALSE
+)
+
+final_data <- final_data |>
+  mutate(
+    log_gdp = log(gdp_1000)
+  )
+
+panel_data <- pdata.frame(
+  final_data,
+  index = c("iso", "year")
+)
+
+maternal_model <- plm(
+  maternal_mortality ~
+    armed_conflict_lag1 +
+    log_gdp +
+    oecd +
+    pop_dens +
+    urban +
+    age_dep +
+    male_edu +
+    temp +
+    rainfall_1000 +
+    earthquake +
+    drought +
+    factor(year),
+  data = panel_data,
+  model = "within",
+  effect = "individual"
+)
+
+under5_model <- plm(
+  under5_mortality ~
+    armed_conflict_lag1 +
+    log_gdp +
+    oecd +
+    pop_dens +
+    urban +
+    age_dep +
+    male_edu +
+    temp +
+    rainfall_1000 +
+    earthquake +
+    drought +
+    factor(year),
+  data = panel_data,
+  model = "within",
+  effect = "individual"
+)
+
+infant_model <- plm(
+  infant_mortality ~
+    armed_conflict_lag1 +
+    log_gdp +
+    oecd +
+    pop_dens +
+    urban +
+    age_dep +
+    male_edu +
+    temp +
+    rainfall_1000 +
+    earthquake +
+    drought +
+    factor(year),
+  data = panel_data,
+  model = "within",
+  effect = "individual"
+)
+
+neonatal_model <- plm(
+  neonatal_mortality ~
+    armed_conflict_lag1 +
+    log_gdp +
+    oecd +
+    pop_dens +
+    urban +
+    age_dep +
+    male_edu +
+    temp +
+    rainfall_1000 +
+    earthquake +
+    drought +
+    factor(year),
+  data = panel_data,
+  model = "within",
+  effect = "individual"
+)
+
+models <- list(
+  "Maternal mortality" = maternal_model,
+  "Under-5 mortality" = under5_model,
+  "Infant mortality" = infant_model,
+  "Neonatal mortality" = neonatal_model
+)
+
+modelsummary(
+  models,
+  stars = TRUE,
+  coef_omit = "factor\\(year\\)"
+)
+```
