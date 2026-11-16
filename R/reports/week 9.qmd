@@ -1,0 +1,298 @@
+
+---
+title: "Comparison of Complete Case and Multiple Imputation Analyses"
+subtitle: "Regression Estimates and 95% Confidence Intervals for Maternal and Child Mortality"
+format:
+  html:
+    toc: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+
+library(tidyverse)
+library(mice)
+library(broom)
+library(knitr)
+
+# 1. Load data
+finaldata <- readr::read_csv(
+  "../../data/processed/final_data.csv",
+  show_col_types = FALSE
+)
+
+# Match variable names used in the lecture
+if (!"age_dep" %in% names(finaldata) &&
+    "age_depr" %in% names(finaldata)) {
+  finaldata <- finaldata |>
+    rename(age_dep = age_depr)
+}
+
+if (!"loggdp" %in% names(finaldata)) {
+  finaldata <- finaldata |>
+    mutate(
+      loggdp = if_else(
+        gdp_1000 > 0,
+        log(gdp_1000),
+        NA_real_
+      )
+    )
+}
+
+# Check required variables
+outcomes <- c(
+  "maternal_mortality",
+  "under5_mortality",
+  "infant_mortality",
+  "neonatal_mortality"
+)
+
+predictors <- c(
+  "armed_conflict",
+  "loggdp",
+  "oecd",
+  "pop_dens",
+  "urban",
+  "age_dep",
+  "male_edu",
+  "temp",
+  "rainfall_1000",
+  "earthquake",
+  "drought"
+)
+
+required_vars <- c(
+  "iso", "year", outcomes, predictors
+)
+
+missing_vars <- setdiff(
+  required_vars,
+  names(finaldata)
+)
+
+if (length(missing_vars) > 0) {
+  stop(
+    "Missing columns: ",
+    paste(missing_vars, collapse = ", ")
+  )
+}
+
+# 2. Prepare data for MICE
+midata <- finaldata |>
+  select(all_of(required_vars)) |>
+  mutate(
+    iso_num = as.integer(factor(iso))
+  ) |>
+  select(-iso)
+
+# 3. Set up multiple imputation
+mice0 <- mice(
+  midata,
+  seed = 100,
+  maxit = 0,
+  printFlag = FALSE
+)
+
+meth <- mice0$method
+
+mi_vars <- c(
+  "urban",
+  "male_edu",
+  "temp",
+  "rainfall_1000",
+  "loggdp",
+  "pop_dens",
+  "maternal_mortality",
+  "infant_mortality",
+  "neonatal_mortality",
+  "under5_mortality"
+)
+
+meth[mi_vars] <- "2l.lmer"
+meth["iso_num"] <- ""
+
+pred <- mice0$predictorMatrix
+pred[mi_vars, "iso_num"] <- -2
+pred["iso_num", ] <- 0
+
+# 4. Perform multiple imputation
+mice.multi.out <- mice(
+  midata,
+  seed = 100,
+  m = 10,
+  maxit = 20,
+  method = meth,
+  predictorMatrix = pred,
+  printFlag = FALSE
+)
+
+# Check that the requested number of imputations ran
+stopifnot(mice.multi.out$m == 10)
+
+# 5. Model formula
+model_formula <- function(outcome) {
+  reformulate(
+    c(
+      predictors,
+      "as.factor(iso_num)",
+      "as.factor(year)"
+    ),
+    response = outcome,
+    intercept = FALSE
+  )
+}
+
+# 6. Fit CC and MI models
+mi_results <- list()
+cc_results <- list()
+
+imputed_datasets <- mice::complete(
+  mice.multi.out,
+  action = "all"
+)
+
+for (outcome in outcomes) {
+
+  f <- model_formula(outcome)
+
+  # Multiple Imputation
+  mi_fits <- lapply(
+    imputed_datasets,
+    function(dat) {
+      lm(f, data = dat)
+    }
+  )
+
+  mi_pooled <- mice::pool(
+    mice::as.mira(mi_fits)
+  )
+
+  mi_results[[outcome]] <- summary(
+    mi_pooled,
+    conf.int = TRUE,
+    conf.level = 0.95
+  )
+
+  # Complete Case Analysis
+  cc_fit <- lm(
+    f,
+    data = midata,
+    na.action = na.omit
+  )
+
+  cc_results[[outcome]] <- broom::tidy(
+    cc_fit,
+    conf.int = TRUE,
+    conf.level = 0.95
+  )
+}
+
+# 7. Extract estimates and confidence intervals
+format_results <- function(x, analysis, outcome) {
+
+  x <- as_tibble(x)
+
+  x |>
+    transmute(
+      outcome = outcome,
+      term = term,
+      analysis = analysis,
+      estimate = estimate,
+      lower = conf.low,
+      upper = conf.high
+    ) |>
+    filter(term %in% predictors) |>
+    mutate(
+      result = sprintf(
+        "%.2f (%.2f, %.2f)",
+        estimate,
+        lower,
+        upper
+      )
+    ) |>
+    select(outcome, term, analysis, result)
+}
+
+all_results <- bind_rows(
+  lapply(outcomes, function(y) {
+    bind_rows(
+      format_results(
+        cc_results[[y]], "CC", y
+      ),
+      format_results(
+        mi_results[[y]], "MI", y
+      )
+    )
+  })
+)
+
+# 8. Create comparison table with readable names
+
+comparison_table <- all_results |>
+  mutate(
+    term = recode(
+      term,
+      "armed_conflict" = "Armed Conflict",
+      "loggdp" = "Log GDP per Capita",
+      "oecd" = "OECD Membership",
+      "pop_dens" = "Population Density",
+      "urban" = "Urbanization",
+      "age_dep" = "Age Dependency Ratio",
+      "male_edu" = "Male Education",
+      "temp" = "Temperature",
+      "rainfall_1000" = "Rainfall",
+      "earthquake" = "Earthquake",
+      "drought" = "Drought"
+    ),
+    outcome = recode(
+      outcome,
+      "maternal_mortality" = "Maternal Mortality",
+      "under5_mortality" = "Under-Five Mortality",
+      "infant_mortality" = "Infant Mortality",
+      "neonatal_mortality" = "Neonatal Mortality"
+    ),
+
+    # Combine Mortality Outcome and Analysis
+    column_name = paste(outcome, analysis, sep = " - ")
+  ) |>
+  select(term, column_name, result) |>
+  pivot_wider(
+    names_from = column_name,
+    values_from = result
+  ) |>
+  rename(Predictor = term) |>
+  select(
+    Predictor,
+    `Maternal Mortality - CC`,
+    `Maternal Mortality - MI`,
+    `Under-Five Mortality - CC`,
+    `Under-Five Mortality - MI`,
+    `Infant Mortality - CC`,
+    `Infant Mortality - MI`,
+    `Neonatal Mortality - CC`,
+    `Neonatal Mortality - MI`
+  )
+
+```
+
+## Regression Results
+
+```{r}
+#| echo: false
+
+knitr::kable(
+  comparison_table,
+  format = "html",
+  caption = paste(
+    "Table 1. Complete Case vs Multiple",
+    "Imputation (m = 10)"
+  ),
+  align = "l",
+  na = "—"
+)
+```
+
